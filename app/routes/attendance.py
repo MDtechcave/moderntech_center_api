@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from app.database import supabase
 from pydantic import BaseModel
+from datetime import date
 
 router = APIRouter()
 
@@ -11,6 +12,9 @@ class LeaveRequest(BaseModel):
 
 class LeaveStatusUpdate(BaseModel):
     status: str
+
+class ClockIn(BaseModel):
+    employee_id: int
 
 @router.get("/")
 def get_attendance():
@@ -49,6 +53,23 @@ def update_leave_status(leave_id: int, update: LeaveStatusUpdate):
     }).eq("id", leave_id).execute()
 
     return {"message": f"Leave request {update.status}", "data": response.data}
+
+@router.post("/clockin")
+def clock_in(data: ClockIn):
+    today = str(date.today())
+
+    existing = supabase.table("attendance").select("*").eq("employee_id", data.employee_id).eq("date", today).execute().data
+
+    if existing:
+        return {"message": "Already clocked in today"}
+
+    response = supabase.table("attendance").insert({
+        "employee_id": data.employee_id,
+        "date": today,
+        "status": "Present"
+    }).execute()
+
+    return {"message": "Clocked in successfully", "data": response.data}
 
 @router.get("/{employee_id}")
 def get_employee_attendance(employee_id: int):
